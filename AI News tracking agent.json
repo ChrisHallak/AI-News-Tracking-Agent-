@@ -1,0 +1,655 @@
+{
+  "name": "AI News tracking agent",
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "DeepSeek-V3-0324",
+          "mode": "list",
+          "cachedResultName": "DeepSeek-V3-0324"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1488,
+        -416
+      ],
+      "id": "d0746caf-76ba-46c1-8afb-fd5d622e3cde",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "xhtykLFBvvFSjq9d",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gemma-3-4b-it",
+          "mode": "list",
+          "cachedResultName": "gemma-3-4b-it"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1696,
+        -384
+      ],
+      "id": "eb8d2d02-4ac0-40e2-9c20-40c7e11f7b9c",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "xhtykLFBvvFSjq9d",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "={{ $json.output.analysis }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        2016,
+        -784
+      ],
+      "id": "65bc1116-1cac-4dda-9d43-2094b332d214",
+      "name": "Markdown"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtMinute": 21
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -16,
+        0
+      ],
+      "id": "d039a04b-ea4b-49c5-9a19-a33a8e3ffd70",
+      "name": "Daily 9 PM Trigger"
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "limit": 50,
+        "filters": {
+          "publishedAfter": "={{ new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() }}",
+          "q": "AI News Today",
+          "regionCode": "US"
+        },
+        "options": {
+          "order": "relevance"
+        }
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        192,
+        0
+      ],
+      "id": "28457d9a-55e4-4289-956a-0922ad4e73ef",
+      "name": "Find Recent AI Videos",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "MJB697ZOte0D3lQF",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        448,
+        0
+      ],
+      "id": "f53dcc24-1bda-40be-acce-4a9ee13faadd",
+      "name": "Loop Over videos"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b60f2a3b-7f2c-4988-8f84-b6344534e41d",
+              "name": "id.videoId",
+              "value": "={{ $json.id.videoId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        928,
+        16
+      ],
+      "id": "5e78a346-f79b-461a-97e7-9cd44be244a5",
+      "name": "Prepare Video ID"
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "get",
+        "videoId": "={{ $json.id.videoId }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        16
+      ],
+      "id": "e98d4087-da8b-4f4d-9c9e-05cbdd515a2e",
+      "name": "Get Video Analytics",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "MJB697ZOte0D3lQF",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const statistics = $json.statistics || {};\nconst snippet = $json.snippet || {};\nconst contentDetails = $json.contentDetails || {};\n\nconst views = Number(statistics.viewCount || 0);\nconst likes = Number(statistics.likeCount || 0);\nconst comments = Number(statistics.commentCount || 0);\n\n// Engagement rates\nconst likeRate = views > 0 ? likes / views : 0;\nconst commentRate = views > 0 ? comments / views : 0;\n\n// Weighted engagement score\nconst engagementScore =\n  (likeRate * 100) * 0.7 +\n  (commentRate * 100) * 0.3;\n\n// Normalize raw popularity\n// log prevents huge channels from dominating everything\nconst popularityScore = Math.log10(views + 1);\n\n// Combined score\nconst finalScore =\n  popularityScore * 0.4 +\n  engagementScore * 0.6;\n\n// Duration\nconst duration = contentDetails.duration || \"PT0S\";\n\nconst match = duration.match(\n  /PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?/\n);\n\nconst hours = Number(match?.[1] || 0);\nconst minutes = Number(match?.[2] || 0);\nconst seconds = Number(match?.[3] || 0);\n\nconst durationSeconds =\n  hours * 3600 +\n  minutes * 60 +\n  seconds;\n\n// Basic quality filters\nconst hasEnoughViews = views >= 500;\nconst hasEngagement = likes >= 5 || comments >= 1;\nconst validDuration = durationSeconds >= 30 && durationSeconds <= 3600;\n\n// Final decision\nconst shouldProcess =\n  hasEnoughViews &&\n  hasEngagement &&\n  validDuration;\n\nreturn {\n  json: {\n    videoId: $json.id,\n\n    title: snippet.title,\n    channelTitle: snippet.channelTitle,\n    publishedAt: snippet.publishedAt,\n\n    views,\n    likes,\n    comments,\n\n    likeRate,\n    commentRate,\n    engagementScore,\n    popularityScore,\n    finalScore,\n\n    durationSeconds,\n\n    shouldProcess\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        16
+      ],
+      "id": "635f739c-8e69-4235-90dc-7ca1a3ff0977",
+      "name": "Calculate Video Engagement"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5fea14fb-9c92-4b8d-a330-06fe0109ba7f",
+              "leftValue": "={{ $json.shouldProcess }}",
+              "rightValue": 60,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1648,
+        16
+      ],
+      "id": "6e9b5f78-f78d-47da-bc48-543a5905c08f",
+      "name": "Filter videos"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.youtubetranscript.dev/api/v2/transcribe",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer yt_sk_live_f8XjzJRKu1un4KEK8uDX-Dl4dmTXHe_6"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"video\": \"{{ $('Get Video Analytics').item.json.id }}\",\n  \"format\": \"paragraphs\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1904,
+        -240
+      ],
+      "id": "1b0bafdd-06b2-49a4-8ff4-71f1434c0d09",
+      "name": "Get Video Transcript",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "let output = \"\";\n\nfor (const item of $input.all()) {\n  const title = item.json.data?.video_title || \"Untitled\";\n  const transcript = item.json.data?.transcript?.text || \"\";\n\n  output += `${title}\\n\\n${transcript}\\n\\n\\n`;\n}\n\nreturn [\n  {\n    json: {\n      text: output\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        -240
+      ],
+      "id": "5ebd5aac-692d-4d44-a322-b03270bbdbf7",
+      "name": "Prepare Transcript"
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "binaryPropertyName": "transcript",
+        "options": {
+          "fileName": "testfile"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2384,
+        -240
+      ],
+      "id": "db4456e2-a432-4791-ac7b-1c625b92ff9c",
+      "name": "Process Transcript"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/AI_News_Today.txt",
+        "dataPropertyName": "transcript",
+        "options": {
+          "append": true
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        2656,
+        -240
+      ],
+      "id": "67f136a3-d82e-417a-94b0-cfb2586f222e",
+      "name": "Save Transcript"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      ready: true\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        -448
+      ],
+      "id": "c67a0331-4954-40c4-ad59-c271f6b6e652",
+      "name": "Combine All Transcripts"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/AI_News_Today.txt",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        -448
+      ],
+      "id": "8035eb8f-7ad0-41b7-b6c6-5ee30ae263e6",
+      "name": "Read Combined Transcript"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        1264,
+        -448
+      ],
+      "id": "45a6dc6f-daaf-42fa-b048-3d84858b6f5d",
+      "name": "Extract Transcript Text"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an **AI News Intelligence Analyst**.\n{{ $json.data }}\nYou are given transcripts and information collected from multiple YouTube videos covering the latest developments in Artificial Intelligence.\n\nYour job is NOT to simply summarize each video.\n\nYour job is to **analyze the collected information, identify the most important events and emerging trends, compare different opinions, and explain their potential impact on the future of AI.**\n\n## Your Objectives\n\n### 1. Identify the Most Important Events\n\nFrom all provided videos, identify the most significant AI events, announcements, releases, research developments, acquisitions, product launches, or industry changes.\n\nDo NOT give equal importance to every topic.\n\nPrioritize events based on:\n\n* Potential impact on the AI industry\n* Significance of the announcement\n* Novelty\n* Potential future consequences\n* Amount and quality of discussion\n* Relevance to current AI trends\n\nMerge multiple videos discussing the same event into **one event** instead of repeating it.\n\nFor each important event, explain:\n\n* What happened?\n* Who is involved?\n* What is new?\n* Why is it important?\n\n---\n\n### 2. Analyze Public Opinion and Discussion\n\nFor each major event, analyze what people and AI commentators are saying about it.\n\nIdentify:\n\n* Positive opinions\n* Negative opinions\n* Concerns or criticism\n* Interesting disagreements\n* Common points of agreement\n* Unexpected or minority perspectives\n\nDo NOT treat opinions as facts.\n\nClearly distinguish between:\n\n**Facts → What actually happened**\n\nand\n\n**Opinions → What people think about it**\n\nIf there is not enough evidence about public opinion, explicitly say so instead of inventing opinions.\n\n---\n\n### 3. Analyze the Potential Impact\n\nFor every major event, explain its potential impact on the future.\n\nConsider areas such as:\n\n* AI models and capabilities\n* AI agents\n* AI engineering\n* Software development\n* Open-source AI\n* AI startups\n* AI companies\n* Jobs and developers\n* AI infrastructure\n* Regulation\n* Competition between major AI companies\n\nExplain both:\n\n**Short-term impact**\n\nand\n\n**Long-term potential impact**\n\nClearly distinguish between confirmed consequences and your own reasonable analysis.\n\n---\n\n### 4. Identify Emerging Trends\n\nAfter analyzing all videos, look for patterns across the different stories.\n\nAnswer:\n\n* What are the biggest AI trends right now?\n* What topics are appearing repeatedly?\n* Where is the AI industry moving?\n* What capabilities are becoming increasingly important?\n* What seems to be receiving unusually high attention?\n\nDo not create a trend simply because multiple videos mention the same keyword.\n\n---\n\n### 5. Determine What Actually Matters\n\nNot every piece of news deserves attention.\n\nClassify major events into:\n\n🔥 **MUST KNOW** — Major development that anyone following AI should know.\n\n🟡 **WORTH KNOWING** — Important development but with limited immediate impact.\n\n⚪ **INTERESTING** — Interesting discussion or development but not highly significant.\n\nFocus the report primarily on **MUST KNOW** events.\n\n---\n\n## Final Report Structure\n\n# 🤖 AI News Intelligence Report\n\n## 🔥 Executive Summary\n\nGive a concise overview of the **3–5 most important developments**.\n\nFor each one, explain in 1–3 sentences:\n\n* What happened\n* Why it matters\n\n---\n\n## 🚨 Most Important Events\n\nFor each major event:\n\n### 1. [Event Name]\n\n**What happened:**\nClear explanation of the event.\n\n**Why it matters:**\nExplain its significance.\n\n**What people are saying:**\nSummarize the main opinions, reactions, disagreements, and concerns.\n\n**Potential impact:**\nExplain the possible short-term and long-term consequences.\n\n**Importance:** 🔥 MUST KNOW / 🟡 WORTH KNOWING / ⚪ INTERESTING\n\n---\n\n## 💬 What People Are Talking About\n\nSummarize the biggest discussions and debates across all videos.\n\nHighlight:\n\n* Most common opinions\n* Strong disagreements\n* Major concerns\n* Interesting predictions\n* Surprising perspectives\n\n---\n\n## 📈 Emerging AI Trends\n\nIdentify **3–5 important trends** emerging from the collected content.\n\nFor each trend:\n\n**Trend:**\n**Evidence:** What suggests this trend is developing?\n**Why it matters:**\n**Potential future direction:**\n\n---\n\n## 🔮 What This Could Mean for the Future\n\nProvide a forward-looking analysis.\n\nIdentify:\n\n* What could change in the next 6–12 months\n* Which technologies or companies may become more important\n* Which current trends could have significant long-term consequences\n* What AI professionals should pay attention to\n\nClearly label speculation as **Potential / Possible / Likely**, and never present predictions as confirmed facts.\n\n---\n\n## 🎯 Bottom Line\n\nEnd with **5 concise key takeaways** that a busy AI professional should remember from today's report.\n\nThe goal is that someone who reads only this section should still understand the most important developments of the day.\n\n## Important Rules\n\n* Do not simply summarize every video.\n* Do not repeat the same event multiple times.\n* Combine information from multiple videos when they discuss the same event.\n* Prioritize significance over the number of videos discussing a topic.\n* Separate facts from opinions.\n* Never invent public reactions or information that is not supported by the provided content.\n* If sources disagree, explicitly mention the disagreement.\n* Prefer concrete information over generic AI commentary.\n* Keep the report clear, concise, and easy to scan.\n* Focus on information that is useful to someone who wants to stay genuinely informed about the AI industry.\n",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1536,
+        -784
+      ],
+      "id": "59e383a2-faa4-4842-9cb4-9f7c90cf6580",
+      "name": "Analyze AI News"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"analysis\":\"\"\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1696,
+        -544
+      ],
+      "id": "4b40e1bb-c365-44ae-8d4e-c0f2a172a285",
+      "name": "Format News Report"
+    },
+    {
+      "parameters": {
+        "jsCode": "const htmlContent = $json.data;\n\nreturn {\n  json: {},\n  binary: {\n    data: {\n      data: Buffer.from(htmlContent, 'utf8').toString('base64'),\n      mimeType: 'text/html',\n      fileName: 'AI_News_Digest.html'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        -784
+      ],
+      "id": "df71fa71-82db-4b09-bf63-ddf806d1eb86",
+      "name": "Prepare HTML Report"
+    },
+    {
+      "parameters": {
+        "operation": "html",
+        "binaryPropertyName": "=data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2512,
+        -784
+      ],
+      "id": "7a4b9124-727b-4d9f-84c8-2bd9678151c6",
+      "name": "Save Daily AI Report"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analyze AI News",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Format News Report",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown": {
+      "main": [
+        [
+          {
+            "node": "Prepare HTML Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 9 PM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Find Recent AI Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Recent AI Videos": {
+      "main": [
+        [
+          {
+            "node": "Loop Over videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over videos": {
+      "main": [
+        [
+          {
+            "node": "Combine All Transcripts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Video ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Video ID": {
+      "main": [
+        [
+          {
+            "node": "Get Video Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Analytics": {
+      "main": [
+        [
+          {
+            "node": "Calculate Video Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Video Engagement": {
+      "main": [
+        [
+          {
+            "node": "Filter videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter videos": {
+      "main": [
+        [
+          {
+            "node": "Get Video Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Transcript": {
+      "main": [
+        [
+          {
+            "node": "Prepare Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Transcript": {
+      "main": [
+        [
+          {
+            "node": "Process Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Transcript": {
+      "main": [
+        [
+          {
+            "node": "Save Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Transcript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine All Transcripts": {
+      "main": [
+        [
+          {
+            "node": "Read Combined Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Combined Transcript": {
+      "main": [
+        [
+          {
+            "node": "Extract Transcript Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Transcript Text": {
+      "main": [
+        [
+          {
+            "node": "Analyze AI News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze AI News": {
+      "main": [
+        [
+          {
+            "node": "Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format News Report": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Analyze AI News",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare HTML Report": {
+      "main": [
+        [
+          {
+            "node": "Save Daily AI Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "80911aa4-ec58-4f9f-ae17-211f40f3b929",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6da8d0db72ab10d97b170c71b84a1dea5c90ae3a28f6d0664c59e62499a8e39e"
+  },
+  "nodeGroups": [],
+  "id": "1aS5wKpYtNwigGkv",
+  "tags": []
+}
